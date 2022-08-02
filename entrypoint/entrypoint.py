@@ -18,7 +18,10 @@ import http.server
 
 # parse arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', default=sys.argv[0] + '.yml', help='config file location')
+parser.add_argument(
+    '--config', default=f'{sys.argv[0]}.yml', help='config file location'
+)
+
 parser.add_argument('--log_level', help='logging level')
 args = parser.parse_args()
 
@@ -34,18 +37,15 @@ def get_config(args):
     for key in conf_yaml:
         if not conf.get(key):
             conf[key] = conf_yaml[key]
-    opsgenie_api_key = os.environ.get('OPSGENIE_API_KEY')
-    if opsgenie_api_key:
+    if opsgenie_api_key := os.environ.get('OPSGENIE_API_KEY'):
         if os.path.isfile(opsgenie_api_key):
             with open(opsgenie_api_key) as opsgenie_api_key_file:
                 conf['opsgenie_api_key'] = opsgenie_api_key_file.read().strip()
         else:
             conf['opsgenie_api_key'] = opsgenie_api_key
-    prometheus_test_url = os.environ.get('PROMETHEUS_TEST_URL')
-    if prometheus_test_url:
+    if prometheus_test_url := os.environ.get('PROMETHEUS_TEST_URL'):
         conf['prometheus_test_url'] = prometheus_test_url
-    alertmanager_test_url = os.environ.get('ALERTMANAGER_TEST_URL')
-    if alertmanager_test_url:
+    if alertmanager_test_url := os.environ.get('ALERTMANAGER_TEST_URL'):
         conf['alertmanager_test_url'] = alertmanager_test_url
 
 def configure_logging():
@@ -119,7 +119,7 @@ data = {
     'alertmanager_notifications_failed_total{integration="opsgenie"}': 0,
     'error': False
 }
-conf = dict()
+conf = {}
 get_config(args)
 log = configure_logging()
 
@@ -130,11 +130,16 @@ class Collector(object):
     def collect(self):
         # add static metrics
         try:
-            if get_data():
-                metric = prometheus_client.core.GaugeMetricFamily('opsgenie_heartbeat_prometheus_status', 'Status of prometheus check OK = 1', value=1)
-            else:
-                metric = prometheus_client.core.GaugeMetricFamily('opsgenie_heartbeat_prometheus_status', 'Status of prometheus check OK = 1', value=0)
-            yield metric
+            yield prometheus_client.core.GaugeMetricFamily(
+                'opsgenie_heartbeat_prometheus_status',
+                'Status of prometheus check OK = 1',
+                value=1,
+            ) if get_data() else prometheus_client.core.GaugeMetricFamily(
+                'opsgenie_heartbeat_prometheus_status',
+                'Status of prometheus check OK = 1',
+                value=0,
+            )
+
             opsgenie_heartbeat_up.set(1)
         except:
             trace = traceback.format_exception(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
